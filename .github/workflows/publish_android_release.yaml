@@ -17,27 +17,6 @@ jobs:
         with:
           ref: master
 
-      # 检查 secrets（提示哪些缺失）
-      - name: Check required secrets
-        run: |
-          MISSING=""
-          if [ -z "${{ secrets.TOKEN }}" ]; then
-            echo "::warning::secrets.TOKEN is not set. Release upload will be skipped."
-            MISSING="$MISSING TOKEN"
-          else
-            echo "OK: secrets.TOKEN is set."
-          fi
-
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "NOTE: secrets.KEYSTORE_BASE64 is present, but signing steps were removed from this workflow."
-          fi
-
-          if [ -n "$MISSING" ]; then
-            echo "::warning::Missing secrets:$MISSING"
-          else
-            echo "All required secrets present (for this configuration)."
-          fi
-
       # 设置 JAVA 环境
       - uses: actions/setup-java@v4
         with:
