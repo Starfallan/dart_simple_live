@@ -47,7 +47,7 @@ android {
 
     // Only create signingConfigs.release when storeFile is not empty
     val storeFilePath = propOrNull("storeFile")
-    if (!storeFilePath.isNullOrBlank()) {
+    if (storeFilePath != null) {
         signingConfigs {
             create("release") {
                 // Here file(...) is only called when storeFilePath is not empty, avoiding file("") error
