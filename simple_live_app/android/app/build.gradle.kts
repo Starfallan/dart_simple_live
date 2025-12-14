@@ -8,10 +8,16 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val keystoreProperties = Properties()
+// --- 安全读取 key.properties（如果存在） ---
 val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
+// 安全获取属性，返回 null 或 非空字符串
+fun propOrNull(name: String): String? {
+    return keystoreProperties.getProperty(name)?.takeIf { it.isNotBlank() }
 }
 
 android {
@@ -39,21 +45,30 @@ android {
         versionName = flutter.versionName
     }
 
-    signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
-            storePassword = keystoreProperties["storePassword"] as String
-            isV1SigningEnabled = true
-            isV2SigningEnabled = true
+    // 仅在 storeFile 非空时创建 signingConfigs.release
+    val storeFilePath = propOrNull("storeFile")
+    if (!storeFilePath.isNullOrBlank()) {
+        signingConfigs {
+            create("release") {
+                // 这里 file(...) 只在 storeFilePath 非空时调用，避免 file("") 抛错
+                storeFile = file(storeFilePath)
+                storePassword = propOrNull("storePassword")
+                keyAlias = propOrNull("keyAlias")
+                keyPassword = propOrNull("keyPassword")
+                isV1SigningEnabled = true
+                isV2SigningEnabled = true
+            }
         }
     }
 
+    // 在 buildTypes.release 中仅在 signingConfigs 有 release 时才应用签名配置
     buildTypes {
-        release {
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("release")
+        getByName("release") {
+            // 保持原有 release 配置（如 minifyEnabled/ProGuard）
+            if (signingConfigs.findByName("release") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            // 未配置签名：保持不设置 signingConfig，从而输出 unsigned APK
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
