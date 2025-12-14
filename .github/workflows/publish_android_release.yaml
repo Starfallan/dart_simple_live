@@ -1,4 +1,4 @@
-name: app-build-action
+name: app-android-build-action
 # 推送 Tag 时触发
 on:
   push:
