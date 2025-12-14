@@ -8,14 +8,14 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// --- 安全读取 key.properties（如果存在） ---
+// --- Safely read key.properties (if exists) ---
 val keystorePropertiesFile = rootProject.file("key.properties")
 val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
-// 安全获取属性，返回 null 或 非空字符串
+// Safely get property, return null or non-empty string
 fun propOrNull(name: String): String? {
     return keystoreProperties.getProperty(name)?.takeIf { it.isNotBlank() }
 }
@@ -45,12 +45,12 @@ android {
         versionName = flutter.versionName
     }
 
-    // 仅在 storeFile 非空时创建 signingConfigs.release
+    // Only create signingConfigs.release when storeFile is not empty
     val storeFilePath = propOrNull("storeFile")
     if (!storeFilePath.isNullOrBlank()) {
         signingConfigs {
             create("release") {
-                // 这里 file(...) 只在 storeFilePath 非空时调用，避免 file("") 抛错
+                // Here file(...) is only called when storeFilePath is not empty, avoiding file("") error
                 storeFile = file(storeFilePath)
                 storePassword = propOrNull("storePassword")
                 keyAlias = propOrNull("keyAlias")
@@ -61,14 +61,14 @@ android {
         }
     }
 
-    // 在 buildTypes.release 中仅在 signingConfigs 有 release 时才应用签名配置
+    // In buildTypes.release, only apply signing config when signingConfigs has release
     buildTypes {
         getByName("release") {
-            // 保持原有 release 配置（如 minifyEnabled/ProGuard）
+            // Keep original release configuration (like minifyEnabled/ProGuard)
             if (signingConfigs.findByName("release") != null) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            // 未配置签名：保持不设置 signingConfig，从而输出 unsigned APK
+            // No signing configured: keep signingConfig unset, thus output unsigned APK
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
