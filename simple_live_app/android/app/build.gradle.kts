@@ -8,10 +8,16 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val keystoreProperties = Properties()
+// --- Safely read key.properties (if exists) ---
 val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
+// Safely get property, return null or non-empty string
+fun propOrNull(name: String): String? {
+    return keystoreProperties.getProperty(name)?.takeIf { it.isNotBlank() }
 }
 
 android {
@@ -39,21 +45,30 @@ android {
         versionName = flutter.versionName
     }
 
-    signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
-            storePassword = keystoreProperties["storePassword"] as String
-            isV1SigningEnabled = true
-            isV2SigningEnabled = true
+    // Only create signingConfigs.release when storeFile is not empty
+    val storeFilePath = propOrNull("storeFile")
+    if (storeFilePath != null) {
+        signingConfigs {
+            create("release") {
+                // Here file(...) is only called when storeFilePath is not empty, avoiding file("") error
+                storeFile = file(storeFilePath)
+                storePassword = propOrNull("storePassword")
+                keyAlias = propOrNull("keyAlias")
+                keyPassword = propOrNull("keyPassword")
+                isV1SigningEnabled = true
+                isV2SigningEnabled = true
+            }
         }
     }
 
+    // In buildTypes.release, only apply signing config when signingConfigs has release
     buildTypes {
-        release {
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("release")
+        getByName("release") {
+            // Keep original release configuration (like minifyEnabled/ProGuard)
+            if (signingConfigs.findByName("release") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            // No signing configured: keep signingConfig unset, thus output unsigned APK
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
