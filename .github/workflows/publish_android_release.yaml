@@ -1,4 +1,4 @@
-name: app-android-build-action
+name: app-build-action
 # 推送 Tag 时触发，且可手动触发
 on:
   push:
@@ -17,20 +17,26 @@ jobs:
         with:
           ref: master
 
-      # APK 签名设置（keystore从 secrets 的 base64 恢复为文件）
-      - name: Download Android keystore
-        id: android_keystore
-        uses: timheuer/base64-to-file@v1.2
-        with:
-          fileName: keystore.jks
-          encodedString: ${{ secrets.KEYSTORE_BASE64 }}
-
-      - name: Create key.properties
+      # 检查 secrets（提示哪些缺失）
+      - name: Check required secrets
         run: |
-          echo "storeFile=${{ steps.android_keystore.outputs.filePath }}" > simple_live_app/android/key.properties
-          echo "storePassword=${{ secrets.STORE_PASSWORD }}" >> simple_live_app/android/key.properties
-          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> simple_live_app/android/key.properties
-          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> simple_live_app/android/key.properties
+          MISSING=""
+          if [ -z "${{ secrets.TOKEN }}" ]; then
+            echo "::warning::secrets.TOKEN is not set. Release upload will be skipped."
+            MISSING="$MISSING TOKEN"
+          else
+            echo "OK: secrets.TOKEN is set."
+          fi
+
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "NOTE: secrets.KEYSTORE_BASE64 is present, but signing steps were removed from this workflow."
+          fi
+
+          if [ -n "$MISSING" ]; then
+            echo "::warning::Missing secrets:$MISSING"
+          else
+            echo "All required secrets present (for this configuration)."
+          fi
 
       # 设置 JAVA 环境
       - uses: actions/setup-java@v4
@@ -52,8 +58,8 @@ jobs:
           cd simple_live_app
           flutter pub get
 
-      # 打包 APK
-      - name: Build APK
+      # 打包 APK（不再做签名，打包出的 APK 可在本地签名）
+      - name: Build APK (unsigned)
         run: |
           cd simple_live_app
           flutter build apk --release --split-per-abi
@@ -81,8 +87,9 @@ jobs:
       - name: Echo version content
         run: echo "${{ fromJson(steps.version.outputs.content).version_desc }}"
 
-      # 上传至 Release（使用 secrets.TOKEN）
+      # 上传至 Release（仅当 secrets.TOKEN 存在时执行）
       - name: Upload Release
+        if: ${{ secrets.TOKEN != '' }}
         uses: softprops/action-gh-release@v1
         with:
           name: "${{ fromJson(steps.version.outputs.content).version }}"
@@ -93,6 +100,10 @@ jobs:
             simple_live_app/build/app/outputs/flutter-apk/app-x86_64-release.apk
             simple_live_app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
             simple_live_app/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+
+      - name: Release skipped notice
+        if: ${{ secrets.TOKEN == '' }}
+        run: echo "::warning::secrets.TOKEN not set — release upload skipped. You can download the unsigned APK(s) from the workflow artifacts and sign locally."
 
       # 完成
       - run: echo "🤖 Android job's status is ${{ job.status }}."
