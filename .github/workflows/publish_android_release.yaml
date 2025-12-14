@@ -1,9 +1,10 @@
 name: app-android-build-action
-# 推送 Tag 时触发
+# 推送 Tag 时触发，且可手动触发
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 jobs:
   build-android:
